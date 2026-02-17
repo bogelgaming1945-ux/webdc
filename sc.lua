@@ -110,6 +110,12 @@ local Button = Tab:CreateButton({
    end,
 })
 
+local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
+
+local webhookEnabled = false
+local connection
+
 local Toggle = Tab:CreateToggle({
    Name = "Enable Webhook",
    CurrentValue = false,
@@ -119,27 +125,37 @@ local Toggle = Tab:CreateToggle({
       webhookEnabled = Value
 
       if webhookEnabled then
+
+         if WEBHOOK_URL == "" then
+            Rayfield:Notify({
+               Title = "Error",
+               Content = "Isi dulu Webhook URL!",
+               Duration = 4,
+            })
+            return
+         end
+
          Rayfield:Notify({
             Title = "Webhook Enabled",
             Content = "Monitoring General chat...",
             Duration = 4,
          })
 
-         -- Connect chat listener
          connection = TextChatService.MessageReceived:Connect(function(message)
 
             if not webhookEnabled then return end
             if not message.TextChannel then return end
-            if message.TextChannel.Name ~= "General" then return end
-            if not message.TextSource then return end
 
-            local text = message.Text
-            if not string.find(string.lower(text), "obtained") then return end
+            -- 🎯 Hanya General
+            if message.TextChannel.Name ~= "General" then
+               return
+            end
+
+            if not message.TextSource then return end
 
             local player = Players:GetPlayerByUserId(message.TextSource.UserId)
             if not player then return end
 
-            -- Kirim ke Discord
             local request = syn and syn.request or request or http_request
             if not request then return end
 
@@ -150,7 +166,7 @@ local Toggle = Tab:CreateToggle({
                   ["Content-Type"] = "application/json"
                },
                Body = HttpService:JSONEncode({
-                  content = "🎣 Fish Obtained\nPlayer: "..player.Name.."\nMessage: "..text.."\nServer: "..game.JobId
+                  content = "💬 General Chat\nPlayer: "..player.Name.."\nMessage: "..message.Text.."\nServer: "..game.JobId
                })
             })
 
@@ -170,4 +186,5 @@ local Toggle = Tab:CreateToggle({
       end
    end,
 })
+
 
