@@ -139,10 +139,10 @@ local Toggle = Tab:CreateToggle({
          -- Connect chat listener dengan error handling
          local success, err = pcall(function()
             local replicatedStorage = game:GetService("ReplicatedStorage")
-            local chatEvents = replicatedStorage:WaitForChild("DefaultChatSystemChatEvents", 5)
+            local chatEvents = replicatedStorage:WaitForChild("DefaultChatSystemChatEvents", 3)
             
             if chatEvents then
-               local onMessageDoneFiltering = chatEvents:WaitForChild("OnMessageDoneFiltering", 5)
+               local onMessageDoneFiltering = chatEvents:WaitForChild("OnMessageDoneFiltering", 3)
                if onMessageDoneFiltering then
                   connection = onMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
                      if messageData and messageData.Message and messageData.FromSpeaker then
@@ -173,12 +173,46 @@ local Toggle = Tab:CreateToggle({
          end)
          
          if not success then
-            Rayfield:Notify({
-               Title = "Error",
-               Content = "Chat system tidak ditemukan: "..err,
-               Duration = 4,
-            })
-            webhookEnabled = false
+            -- Fallback: Coba gunakan TextChatService (chat system terbaru)
+            local success2, err2 = pcall(function()
+               local TextChatService = game:GetService("TextChatService")
+               local generalChannel = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral", 3)
+               
+               if generalChannel then
+                  connection = generalChannel.MessageReceived:Connect(function(message)
+                     if message.TextSource and message.TextSource.Parent:IsA("Player") then
+                        local author = message.TextSource.Parent.Name
+                        local content = message.Text
+                        local channel = "RBXGeneral"
+
+                        local request = syn and syn.request or request or http_request
+                        if request and WEBHOOK_URL ~= "" then
+                           local data = {
+                              content = "[**"..channel.."**] **"..author.."**: "..content
+                           }
+
+                           request({
+                              Url = WEBHOOK_URL,
+                              Method = "POST",
+                              Headers = {
+                                 ["Content-Type"] = "application/json"
+                              },
+                              Body = HttpService:JSONEncode(data)
+                           })
+                        end
+                     end
+                  end)
+               end
+            end)
+            
+            if not success2 then
+               Rayfield:Notify({
+                  Title = "Error",
+                  Content = "Chat system tidak ditemukan!",
+                  Duration = 4,
+               })
+               webhookEnabled = false
+            end
          end
 
       else
