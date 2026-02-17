@@ -145,12 +145,12 @@ local Toggle = Tab:CreateToggle({
                local onMessageDoneFiltering = chatEvents:WaitForChild("OnMessageDoneFiltering", 3)
                if onMessageDoneFiltering then
                   connection = onMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
-                     if messageData and messageData.Message and messageData.FromSpeaker then
+                     if messageData and messageData.Message then
                         local content = messageData.Message
-                        local author = messageData.FromSpeaker
+                        local author = messageData.FromSpeaker or "Server"
                         local channel = messageData.ChannelName or "Unknown"
 
-                        -- Ambil semua chat dari semua channel
+                        -- Tangkap semua chat (player dan server)
                         local request = syn and syn.request or request or http_request
                         if request and WEBHOOK_URL ~= "" then
                            local data = {
@@ -176,32 +176,42 @@ local Toggle = Tab:CreateToggle({
             -- Fallback: Coba gunakan TextChatService (chat system terbaru)
             local success2, err2 = pcall(function()
                local TextChatService = game:GetService("TextChatService")
-               local generalChannel = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral", 3)
+               local textChannels = TextChatService:WaitForChild("TextChannels", 3)
                
-               if generalChannel then
-                  connection = generalChannel.MessageReceived:Connect(function(message)
-                     if message.TextSource and message.TextSource.Parent:IsA("Player") then
-                        local author = message.TextSource.Parent.Name
-                        local content = message.Text
-                        local channel = "RBXGeneral"
+               if textChannels then
+                  for _, channel in ipairs(textChannels:GetChildren()) do
+                     local function onMessageReceived(message)
+                        if message and message.Text then
+                           local author = "Server"
+                           if message.TextSource and message.TextSource.Parent:IsA("Player") then
+                              author = message.TextSource.Parent.Name
+                           end
+                           
+                           local content = message.Text
+                           local channelName = channel.Name
 
-                        local request = syn and syn.request or request or http_request
-                        if request and WEBHOOK_URL ~= "" then
-                           local data = {
-                              content = "[**"..channel.."**] **"..author.."**: "..content
-                           }
+                           local request = syn and syn.request or request or http_request
+                           if request and WEBHOOK_URL ~= "" then
+                              local data = {
+                                 content = "[**"..channelName.."**] **"..author.."**: "..content
+                              }
 
-                           request({
-                              Url = WEBHOOK_URL,
-                              Method = "POST",
-                              Headers = {
-                                 ["Content-Type"] = "application/json"
-                              },
-                              Body = HttpService:JSONEncode(data)
-                           })
+                              request({
+                                 Url = WEBHOOK_URL,
+                                 Method = "POST",
+                                 Headers = {
+                                    ["Content-Type"] = "application/json"
+                                 },
+                                 Body = HttpService:JSONEncode(data)
+                              })
+                           end
                         end
                      end
-                  end)
+                     
+                     if channel:IsA("TextChannel") then
+                        channel.MessageReceived:Connect(onMessageReceived)
+                     end
+                  end
                end
             end)
             
