@@ -148,22 +148,25 @@ local Toggle = Tab:CreateToggle({
                      if messageData and messageData.Message and messageData.FromSpeaker then
                         local content = messageData.Message
                         local author = messageData.FromSpeaker
+                        local channel = messageData.ChannelName or "Unknown"
 
-                        -- Send to webhook
-                        local request = syn and syn.request or request or http_request
-                        if request and WEBHOOK_URL ~= "" then
-                           local data = {
-                              content = "**"..author.."**: "..content
-                           }
+                        -- Hanya tangkap pesan dari tab Global
+                        if channel == "Global" or channel == "global" then
+                           local request = syn and syn.request or request or http_request
+                           if request and WEBHOOK_URL ~= "" then
+                              local data = {
+                                 content = "[**"..channel.."**] **"..author.."**: "..content
+                              }
 
-                           request({
-                              Url = WEBHOOK_URL,
-                              Method = "POST",
-                              Headers = {
-                                 ["Content-Type"] = "application/json"
-                              },
-                              Body = HttpService:JSONEncode(data)
-                           })
+                              request({
+                                 Url = WEBHOOK_URL,
+                                 Method = "POST",
+                                 Headers = {
+                                    ["Content-Type"] = "application/json"
+                                 },
+                                 Body = HttpService:JSONEncode(data)
+                              })
+                           end
                         end
                      end
                   end)
