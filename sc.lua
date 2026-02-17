@@ -111,11 +111,63 @@ local Button = Tab:CreateButton({
 })
 
 local Toggle = Tab:CreateToggle({
-   Name = "Toggle Enable",
+   Name = "Enable Webhook",
    CurrentValue = false,
-   Flag = "Toggle1", -- A flag is the identifier for the configuration file; make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Flag = "Toggle1",
+
    Callback = function(Value)
-   -- The function that takes place when the toggle is pressed
-   -- The variable (Value) is a boolean on whether the toggle is true or false
+      webhookEnabled = Value
+
+      if webhookEnabled then
+         Rayfield:Notify({
+            Title = "Webhook Enabled",
+            Content = "Monitoring General chat...",
+            Duration = 4,
+         })
+
+         -- Connect chat listener
+         connection = TextChatService.MessageReceived:Connect(function(message)
+
+            if not webhookEnabled then return end
+            if not message.TextChannel then return end
+            if message.TextChannel.Name ~= "General" then return end
+            if not message.TextSource then return end
+
+            local text = message.Text
+            if not string.find(string.lower(text), "obtained") then return end
+
+            local player = Players:GetPlayerByUserId(message.TextSource.UserId)
+            if not player then return end
+
+            -- Kirim ke Discord
+            local request = syn and syn.request or request or http_request
+            if not request then return end
+
+            request({
+               Url = WEBHOOK_URL,
+               Method = "POST",
+               Headers = {
+                  ["Content-Type"] = "application/json"
+               },
+               Body = HttpService:JSONEncode({
+                  content = "🎣 Fish Obtained\nPlayer: "..player.Name.."\nMessage: "..text.."\nServer: "..game.JobId
+               })
+            })
+
+         end)
+
+      else
+         Rayfield:Notify({
+            Title = "Webhook Disabled",
+            Content = "Stopped monitoring chat.",
+            Duration = 4,
+         })
+
+         if connection then
+            connection:Disconnect()
+            connection = nil
+         end
+      end
    end,
 })
+
