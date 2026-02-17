@@ -150,23 +150,21 @@ local Toggle = Tab:CreateToggle({
                         local author = messageData.FromSpeaker
                         local channel = messageData.ChannelName or "Unknown"
 
-                        -- Hanya tangkap pesan dari tab Global
-                        if channel == "Global" or channel == "global" then
-                           local request = syn and syn.request or request or http_request
-                           if request and WEBHOOK_URL ~= "" then
-                              local data = {
-                                 content = "[**"..channel.."**] **"..author.."**: "..content
-                              }
+                        -- Ambil semua chat dari semua channel
+                        local request = syn and syn.request or request or http_request
+                        if request and WEBHOOK_URL ~= "" then
+                           local data = {
+                              content = "[**"..channel.."**] **"..author.."**: "..content
+                           }
 
-                              request({
-                                 Url = WEBHOOK_URL,
-                                 Method = "POST",
-                                 Headers = {
-                                    ["Content-Type"] = "application/json"
-                                 },
-                                 Body = HttpService:JSONEncode(data)
-                              })
-                           end
+                           request({
+                              Url = WEBHOOK_URL,
+                              Method = "POST",
+                              Headers = {
+                                 ["Content-Type"] = "application/json"
+                              },
+                              Body = HttpService:JSONEncode(data)
+                           })
                         end
                      end
                   end)
