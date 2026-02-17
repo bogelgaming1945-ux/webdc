@@ -56,6 +56,8 @@ local Input = Tab:CreateInput({
 })
 
 local HttpService = game:GetService("HttpService")
+local webhookEnabled = false
+local connection = nil
 
 local Button = Tab:CreateButton({
    Name = "Test Webhook",
@@ -110,12 +112,6 @@ local Button = Tab:CreateButton({
    end,
 })
 
-local Players = game:GetService("Players")
-local TextChatService = game:GetService("TextChatService")
-
-local webhookEnabled = false
-local connection
-
 local Toggle = Tab:CreateToggle({
    Name = "Enable Webhook",
    CurrentValue = false,
@@ -125,7 +121,6 @@ local Toggle = Tab:CreateToggle({
       webhookEnabled = Value
 
       if webhookEnabled then
-
          if WEBHOOK_URL == "" then
             Rayfield:Notify({
                Title = "Error",
@@ -141,36 +136,49 @@ local Toggle = Tab:CreateToggle({
             Duration = 4,
          })
 
-         connection = TextChatService.MessageReceived:Connect(function(message)
+         -- Connect chat listener dengan error handling
+         local success, err = pcall(function()
+            local replicatedStorage = game:GetService("ReplicatedStorage")
+            local chatEvents = replicatedStorage:WaitForChild("DefaultChatSystemChatEvents", 5)
+            
+            if chatEvents then
+               local onMessageDoneFiltering = chatEvents:WaitForChild("OnMessageDoneFiltering", 5)
+               if onMessageDoneFiltering then
+                  connection = onMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
+                     if messageData and messageData.Message and messageData.FromSpeaker then
+                        local content = messageData.Message
+                        local author = messageData.FromSpeaker
 
-            if not webhookEnabled then return end
-            if not message.TextChannel then return end
+                        -- Send to webhook
+                        local request = syn and syn.request or request or http_request
+                        if request and WEBHOOK_URL ~= "" then
+                           local data = {
+                              content = "**"..author.."**: "..content
+                           }
 
-            -- 🎯 Hanya General
-            if message.TextChannel.Name ~= "General" then
-               return
+                           request({
+                              Url = WEBHOOK_URL,
+                              Method = "POST",
+                              Headers = {
+                                 ["Content-Type"] = "application/json"
+                              },
+                              Body = HttpService:JSONEncode(data)
+                           })
+                        end
+                     end
+                  end)
+               end
             end
-
-            if not message.TextSource then return end
-
-            local player = Players:GetPlayerByUserId(message.TextSource.UserId)
-            if not player then return end
-
-            local request = syn and syn.request or request or http_request
-            if not request then return end
-
-            request({
-               Url = WEBHOOK_URL,
-               Method = "POST",
-               Headers = {
-                  ["Content-Type"] = "application/json"
-               },
-               Body = HttpService:JSONEncode({
-                  content = "💬 General Chat\nPlayer: "..player.Name.."\nMessage: "..message.Text.."\nServer: "..game.JobId
-               })
-            })
-
          end)
+         
+         if not success then
+            Rayfield:Notify({
+               Title = "Error",
+               Content = "Chat system tidak ditemukan: "..err,
+               Duration = 4,
+            })
+            webhookEnabled = false
+         end
 
       else
          Rayfield:Notify({
@@ -186,5 +194,3 @@ local Toggle = Tab:CreateToggle({
       end
    end,
 })
-
-
