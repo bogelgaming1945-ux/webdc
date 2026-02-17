@@ -6,11 +6,32 @@ local TARGET_CHANNEL_NAME = "General"
 local WEBHOOK_URL = nil
 
 --------------------------------------------------
+-- 🔒 SET USER YANG BOLEH AKSES UI
+-- GANTI DENGAN USERID KAMU
+--------------------------------------------------
+
+local ALLOWED_USER_IDS = {
+	10531331070, -- GANTI DENGAN USERID KAMU
+}
+
+local function isAllowed(player)
+	for _, id in ipairs(ALLOWED_USER_IDS) do
+		if player.UserId == id then
+			return true
+		end
+	end
+	return false
+end
+
+--------------------------------------------------
 -- DISCORD POST FUNCTION
 --------------------------------------------------
 
 local function postToDiscord(data)
-	if not WEBHOOK_URL or WEBHOOK_URL == "" then return end
+	if not WEBHOOK_URL or WEBHOOK_URL == "" then 
+		warn("Webhook belum di-set")
+		return 
+	end
 	
 	local jsonData = HttpService:JSONEncode(data)
 
@@ -20,6 +41,8 @@ local function postToDiscord(data)
 
 	if not success then
 		warn("Webhook Error:", err)
+	else
+		print("Webhook Sent Successfully")
 	end
 end
 
@@ -37,6 +60,10 @@ local function sendConnectionAlert()
 				{
 					["name"] = "Server ID",
 					["value"] = game.JobId
+				},
+				{
+					["name"] = "Private Server",
+					["value"] = game.PrivateServerId ~= "" and "Yes" or "No"
 				}
 			},
 			["timestamp"] = DateTime.now():ToIsoDate()
@@ -54,18 +81,9 @@ local function sendFishLog(playerName, message)
 			["title"] = "🎣 Fish Obtained (Server Only)",
 			["color"] = 65280,
 			["fields"] = {
-				{
-					["name"] = "Player",
-					["value"] = playerName
-				},
-				{
-					["name"] = "Message",
-					["value"] = message
-				},
-				{
-					["name"] = "Server ID",
-					["value"] = game.JobId
-				}
+				{["name"] = "Player", ["value"] = playerName},
+				{["name"] = "Message", ["value"] = message},
+				{["name"] = "Server ID", ["value"] = game.JobId}
 			},
 			["timestamp"] = DateTime.now():ToIsoDate()
 		}}
@@ -73,15 +91,14 @@ local function sendFishLog(playerName, message)
 end
 
 --------------------------------------------------
--- CREATE UI FOR CREATOR ONLY
+-- CREATE UI (NO CREATOR CHECK BUG)
 --------------------------------------------------
 
 Players.PlayerAdded:Connect(function(player)
+
+	if not isAllowed(player) then return end
 	
-	-- Hanya Creator yang bisa set webhook
-	if player.UserId ~= game.CreatorId then return end
-	
-	player.CharacterAdded:Wait()
+	task.wait(1) -- biar PlayerGui ready
 	
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "WebhookSetupUI"
@@ -106,7 +123,6 @@ Players.PlayerAdded:Connect(function(player)
 	box.Size = UDim2.new(0.9,0,0,60)
 	box.Position = UDim2.new(0.05,0,0.3,0)
 	box.PlaceholderText = "Paste Discord Webhook URL here..."
-	box.Text = ""
 	box.TextWrapped = true
 	box.TextScaled = true
 	box.BackgroundColor3 = Color3.fromRGB(50,50,50)
@@ -129,11 +145,11 @@ Players.PlayerAdded:Connect(function(player)
 			sendConnectionAlert()
 		end
 	end)
-	
+
 end)
 
 --------------------------------------------------
--- CHAT LOGGER (GENERAL ONLY)
+-- CHAT LOGGER
 --------------------------------------------------
 
 if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
