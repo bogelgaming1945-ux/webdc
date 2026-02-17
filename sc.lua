@@ -1,13 +1,13 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Webhook Hub",
-   LoadingTitle = "Webhook Hub",
+   Name = "Boba Hub",
+   LoadingTitle = "Boba Hub",
    LoadingSubtitle = "by Boba",
    ConfigurationSaving = {
       Enabled = false,
       FolderName = nil, -- Create a custom folder for your hub/game
-      FileName = "Webhook Hub"
+      FileName = "Boba Hub"
    },
    Discord = {
       Enabled = false,
@@ -24,4 +24,98 @@ local Window = Rayfield:CreateWindow({
       GrabKeyFromSite = true, -- If true, it will grab the key from the specified website (see Key below)
       Key = "https://pastebin.com/raw/XZfU1EpU" -- If GrabKeyFromSite is true, set this to the URL where the key can be found
    }
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+Rayfield:Notify({
+   Title = "Notification",
+   Content = "Scripts loaded",
+   Duration = 5,
+   Image = nil,
+})
+
+local WEBHOOK_URL = ""
+
+local Input = Tab:CreateInput({
+   Name = "Input URL",
+   CurrentValue = "",
+   PlaceholderText = "discord webhook URL",
+   RemoveTextAfterFocusLost = false,
+   Flag = "Input1",
+
+   Callback = function(Text)
+      WEBHOOK_URL = Text
+      Rayfield:Notify({
+        Title = "Notification",
+        Content = "Webhook URL updated",
+        Duration = 5,
+        Image = nil,
+        })
+   end,
+})
+
+local HttpService = game:GetService("HttpService")
+
+local Button = Tab:CreateButton({
+   Name = "Test Webhook",
+   Callback = function()
+
+      if WEBHOOK_URL == "" then
+         Rayfield:Notify({
+            Title = "Error",
+            Content = "Isi dulu Webhook URL!",
+            Duration = 4,
+         })
+         return
+      end
+
+      local request = syn and syn.request or request or http_request
+      if not request then
+         Rayfield:Notify({
+            Title = "Error",
+            Content = "Executor tidak support HTTP Request!",
+            Duration = 4,
+         })
+         return
+      end
+
+      local data = {
+         content = "✅ Webhook Connected\nFish Logger is now active.\nServer ID: "..game.JobId
+      }
+
+      local response = request({
+         Url = WEBHOOK_URL,
+         Method = "POST",
+         Headers = {
+            ["Content-Type"] = "application/json"
+         },
+         Body = HttpService:JSONEncode(data)
+      })
+
+      if response and response.StatusCode == 204 then
+         Rayfield:Notify({
+            Title = "Success",
+            Content = "Webhook berhasil dikirim!",
+            Duration = 4,
+         })
+      else
+         Rayfield:Notify({
+            Title = "Failed",
+            Content = "Gagal kirim webhook!",
+            Duration = 4,
+         })
+      end
+
+   end,
+})
+
+local Toggle = Tab:CreateToggle({
+   Name = "Toggle Enable",
+   CurrentValue = false,
+   Flag = "Toggle1", -- A flag is the identifier for the configuration file; make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Value)
+   -- The function that takes place when the toggle is pressed
+   -- The variable (Value) is a boolean on whether the toggle is true or false
+   end,
 })
