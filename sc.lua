@@ -58,6 +58,9 @@ local Input = Tab:CreateInput({
 local HttpService = game:GetService("HttpService")
 local webhookEnabled = false
 local connection = nil
+-- Variables for remote hook (caught fish)
+local caughtHookOld = nil
+local caughtHookEnabled = false
 
 local Button = Tab:CreateButton({
    Name = "Test Webhook",
@@ -111,6 +114,7 @@ local Button = Tab:CreateButton({
 
    end,
 })
+
 -- Button to send all player usernames to the configured webhook
 local SendNamesButton = Tab:CreateButton({
    Name = "Send All Player Usernames",
@@ -208,6 +212,53 @@ local Toggle = Tab:CreateToggle({
             Duration = 4,
          })
 
+            -- Setup hook to detect client -> server FireServer calls to the CaughtFishVisual remote
+            if hookmetamethod and getnamecallmethod then
+               if not caughtHookEnabled then
+                  caughtHookOld = hookmetamethod(game, "__namecall", function(self, ...)
+                     local method = getnamecallmethod()
+                     local args = { ... }
+                     if method == "FireServer" then
+                        local okName, instName = pcall(function() return self.Name end)
+                        local okFull, fullName = pcall(function() return self:GetFullName() end)
+                        local asString = tostring(self)
+                        if (okName and instName and tostring(instName):find("CaughtFishVisual")) or (okFull and fullName and tostring(fullName):find("CaughtFishVisual")) or asString:find("CaughtFishVisual") then
+                           local playerArg = args[1]
+                           local playerName = tostring(playerArg)
+                           pcall(function()
+                              if typeof(playerArg) == "Instance" and playerArg:IsA("Player") then
+                                 playerName = playerArg.Name
+                              end
+                           end)
+                           local pos = tostring(args[2] or "")
+                           local fish = tostring(args[3] or "")
+                           local extra = tostring(args[4] or "")
+
+                           local payload = {
+                              content = "🎣 **CaughtFish**\nPlayer: "..playerName.."\nFish: "..fish.."\nPos: "..pos.."\nExtra: "..extra
+                           }
+
+                           local req = syn and syn.request or request or http_request
+                           if req and WEBHOOK_URL ~= "" then
+                              pcall(function()
+                                 req({
+                                    Url = WEBHOOK_URL,
+                                    Method = "POST",
+                                    Headers = { ["Content-Type"] = "application/json" },
+                                    Body = HttpService:JSONEncode(payload)
+                                 })
+                              end)
+                           end
+                        end
+                     end
+
+                     return caughtHookOld(self, ...)
+                  end)
+                  caughtHookEnabled = true
+               end
+            else
+               Rayfield:Notify({Title = "Info", Content = "Hookmetamethod tidak tersedia; tidak dapat monitor remote CaughtFishVisual.", Duration = 4})
+            end
          -- Connect chat listener dengan error handling
          local success, err = pcall(function()
             local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -307,6 +358,15 @@ local Toggle = Tab:CreateToggle({
          if connection then
             connection:Disconnect()
             connection = nil
+         end
+
+         -- Restore original namecall hook if we set it
+         if caughtHookEnabled and hookmetamethod and caughtHookOld then
+            pcall(function()
+               hookmetamethod(game, "__namecall", caughtHookOld)
+            end)
+            caughtHookOld = nil
+            caughtHookEnabled = false
          end
       end
    end,
