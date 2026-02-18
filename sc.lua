@@ -163,7 +163,7 @@ local Toggle = Tab:CreateToggle({
                      end
                   end
                end
-               local ok, ret = pcall(function() return caughtHookOld(self, ...) end)
+               local ok, ret = pcall(function() return caughtHookOld(self, unpack(args)) end)
                if ok then return ret end
                return nil
             end)
