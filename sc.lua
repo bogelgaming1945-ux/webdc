@@ -4,38 +4,50 @@ local Window = Rayfield:CreateWindow({
    Name = "Boba Hub",
    LoadingTitle = "Boba Hub",
    LoadingSubtitle = "by Boba",
-   ConfigurationSaving = {
-      Enabled = false,
-      FolderName = nil, -- Create a custom folder for your hub/game
-      FileName = "Boba Hub"
-   },
-   Discord = {
-      Enabled = false,
-      Invite = "noinv", -- The discord invite code, do not include discord.gg/. E.g. discord.gg/ABCD would be ABCD.
-      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
-   },
-   KeySystem = true, -- Set this to true to use our key system
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
+   KeySystem = true,
    KeySettings = {
       Title = "Boba Key System",
       Subtitle = "Key System",
       Note = "Join the discord (https://discord.gg/2juPPG6v9U) for the key!",
-      FileName = "BobaKey", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
-      SaveKey = false, -- Set this to false to not save the key to a file
-      GrabKeyFromSite = true, -- If true, it will grab the key from the specified website (see Key below)
-      Key = "https://pastebin.com/raw/XZfU1EpU" -- If GrabKeyFromSite is true, set this to the URL where the key can be found
-   }
+      FileName = "BobaKey",
+      SaveKey = false,
+      GrabKeyFromSite = true,
+      Key = "https://pastebin.com/raw/XZfU1EpU",
+   },
 })
 
 local Tab = Window:CreateTab("Main", 4483362458)
 
-Rayfield:Notify({
-   Title = "Notification",
-   Content = "Scripts loaded",
-   Duration = 5,
-   Image = nil,
-})
+Rayfield:Notify({ Title = "Notification", Content = "Scripts loaded", Duration = 5 })
 
 local WEBHOOK_URL = ""
+local HttpService = game:GetService("HttpService")
+local webhookEnabled = false
+
+-- Hook state for CaughtFishVisual
+local caughtHookOld = nil
+local caughtHookEnabled = false
+
+local function get_request()
+   return syn and syn.request or request or http_request
+end
+
+local function send_webhook(content)
+   local req = get_request()
+   if not req or WEBHOOK_URL == "" then return false end
+   local ok, res = pcall(function()
+      return req({
+         Url = WEBHOOK_URL,
+         Method = "POST",
+         Headers = { ["Content-Type"] = "application/json" },
+         Body = HttpService:JSONEncode({ content = content }),
+      })
+   end)
+   if not ok or not res then return false end
+   return (res.StatusCode == 204 or res.StatusCode == 200)
+end
 
 local Input = Tab:CreateInput({
    Name = "Input URL",
@@ -43,148 +55,65 @@ local Input = Tab:CreateInput({
    PlaceholderText = "discord webhook URL",
    RemoveTextAfterFocusLost = false,
    Flag = "Input1",
-
    Callback = function(Text)
       WEBHOOK_URL = Text
-      Rayfield:Notify({
-        Title = "Notification",
-        Content = "Webhook URL updated",
-        Duration = 5,
-        Image = nil,
-        })
+      Rayfield:Notify({ Title = "Notification", Content = "Webhook URL updated", Duration = 4 })
    end,
 })
-
-local HttpService = game:GetService("HttpService")
-local webhookEnabled = false
-local connection = nil
--- Variables for remote hook (caught fish)
-local caughtHookOld = nil
-local caughtHookEnabled = false
 
 local Button = Tab:CreateButton({
    Name = "Test Webhook",
    Callback = function()
-
       if WEBHOOK_URL == "" then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Isi dulu Webhook URL!",
-            Duration = 4,
-         })
+         Rayfield:Notify({ Title = "Error", Content = "Isi dulu Webhook URL!", Duration = 4 })
          return
       end
-
-      local request = syn and syn.request or request or http_request
-      if not request then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Executor tidak support HTTP Request!",
-            Duration = 4,
-         })
-         return
-      end
-
-      local data = {
-         content = "✅ Webhook Connected\nFish Logger is now active.\nServer ID: "..game.JobId
-      }
-
-      local response = request({
-         Url = WEBHOOK_URL,
-         Method = "POST",
-         Headers = {
-            ["Content-Type"] = "application/json"
-         },
-         Body = HttpService:JSONEncode(data)
-      })
-
-      if response and response.StatusCode == 204 then
-         Rayfield:Notify({
-            Title = "Success",
-            Content = "Webhook berhasil dikirim!",
-            Duration = 4,
-         })
+      local success = send_webhook("✅ Webhook Connected\nFish Logger is now active.\nServer ID: "..tostring(game.JobId))
+      if success then
+         Rayfield:Notify({ Title = "Success", Content = "Webhook berhasil dikirim!", Duration = 4 })
       else
-         Rayfield:Notify({
-            Title = "Failed",
-            Content = "Gagal kirim webhook!",
-            Duration = 4,
-         })
+         Rayfield:Notify({ Title = "Failed", Content = "Gagal kirim webhook!", Duration = 4 })
       end
-
    end,
 })
 
--- Button to send all player usernames to the configured webhook
+local function chunk_lines(lines, maxlen)
+   maxlen = maxlen or 1800
+   local chunks = {}
+   local current = ""
+   for _, line in ipairs(lines) do
+      if #current + #line + 1 > maxlen then
+         table.insert(chunks, current)
+         current = line .. "\n"
+      else
+         current = current .. line .. "\n"
+      end
+   end
+   if current ~= "" then table.insert(chunks, current) end
+   return chunks
+end
+
 local SendNamesButton = Tab:CreateButton({
    Name = "Send All Player Usernames",
    Callback = function()
-
       if WEBHOOK_URL == "" then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Isi dulu Webhook URL!",
-            Duration = 4,
-         })
+         Rayfield:Notify({ Title = "Error", Content = "Isi dulu Webhook URL!", Duration = 4 })
          return
       end
-
-      local request = syn and syn.request or request or http_request
-      if not request then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Executor tidak support HTTP Request!",
-            Duration = 4,
-         })
+      local players = game:GetService("Players"):GetPlayers()
+      local lines = {}
+      for _, p in ipairs(players) do table.insert(lines, tostring(p.Name)) end
+      if #lines == 0 then
+         Rayfield:Notify({ Title = "Info", Content = "Tidak ada pemain di server.", Duration = 4 })
          return
       end
-
-      local Players = game:GetService("Players"):GetPlayers()
-      local names = {}
-      for _, p in ipairs(Players) do
-         table.insert(names, tostring(p.Name))
-      end
-
-      if #names == 0 then
-         Rayfield:Notify({Title = "Info", Content = "Tidak ada pemain di server.", Duration = 4})
-         return
-      end
-
-      local chunks = {}
-      local current = ""
-      for _, name in ipairs(names) do
-         if #current + #name + 2 > 1800 then
-            table.insert(chunks, current)
-            current = name .. "\n"
-         else
-            current = current .. name .. "\n"
-         end
-      end
-      if current ~= "" then table.insert(chunks, current) end
-
-      local successAll = true
+      local chunks = chunk_lines(lines)
+      local okAll = true
       for _, chunk in ipairs(chunks) do
-         local data = { content = "**Player Usernames ("..#names..")**\n".."```\n"..chunk.."```" }
-         local ok, resp = pcall(function()
-            return request({
-               Url = WEBHOOK_URL,
-               Method = "POST",
-               Headers = { ["Content-Type"] = "application/json" },
-               Body = HttpService:JSONEncode(data)
-            })
-         end)
-
-         if not ok or not resp or not (resp.StatusCode == 204 or resp.StatusCode == 200) then
-            successAll = false
-         end
+         local content = "**Player Usernames ("..#lines..")**\n```\n"..chunk.."```"
+         if not send_webhook(content) then okAll = false end
       end
-
-      if successAll then
-         Rayfield:Notify({Title = "Success", Content = "Usernames sent to webhook!", Duration = 4})
-      else
-         Rayfield:Notify({Title = "Failed", Content = "Beberapa request gagal dikirim ke webhook.", Duration = 4})
-      end
-
+      Rayfield:Notify({ Title = okAll and "Success" or "Failed", Content = okAll and "Usernames sent to webhook!" or "Beberapa request gagal dikirim ke webhook.", Duration = 4 })
    end,
 })
 
@@ -192,179 +121,46 @@ local Toggle = Tab:CreateToggle({
    Name = "Enable Webhook",
    CurrentValue = false,
    Flag = "Toggle1",
-
    Callback = function(Value)
       webhookEnabled = Value
-
       if webhookEnabled then
          if WEBHOOK_URL == "" then
-            Rayfield:Notify({
-               Title = "Error",
-               Content = "Isi dulu Webhook URL!",
-               Duration = 4,
-            })
+            Rayfield:Notify({ Title = "Error", Content = "Isi dulu Webhook URL!", Duration = 4 })
+            webhookEnabled = false
             return
          end
+         Rayfield:Notify({ Title = "Webhook Enabled", Content = "Webhook enabled (chat monitoring disabled)", Duration = 4 })
 
-         Rayfield:Notify({
-            Title = "Webhook Enabled",
-            Content = "Monitoring General chat...",
-            Duration = 4,
-         })
-
-            -- Setup hook to detect client -> server FireServer calls to the CaughtFishVisual remote
-            if hookmetamethod and getnamecallmethod then
-               if not caughtHookEnabled then
-                  caughtHookOld = hookmetamethod(game, "__namecall", function(self, ...)
-                     local method = getnamecallmethod()
-                     local args = { ... }
-                     if method == "FireServer" then
-                        local okName, instName = pcall(function() return self.Name end)
-                        local okFull, fullName = pcall(function() return self:GetFullName() end)
-                        local asString = tostring(self)
-                        if (okName and instName and tostring(instName):find("CaughtFishVisual")) or (okFull and fullName and tostring(fullName):find("CaughtFishVisual")) or asString:find("CaughtFishVisual") then
-                           local playerArg = args[1]
-                           local playerName = tostring(playerArg)
-                           pcall(function()
-                              if typeof(playerArg) == "Instance" and playerArg:IsA("Player") then
-                                 playerName = playerArg.Name
-                              end
-                           end)
-                           local pos = tostring(args[2] or "")
-                           local fish = tostring(args[3] or "")
-                           local extra = tostring(args[4] or "")
-
-                           local payload = {
-                              content = "🎣 **CaughtFish**\nPlayer: "..playerName.."\nFish: "..fish.."\nPos: "..pos.."\nExtra: "..extra
-                           }
-
-                           local req = syn and syn.request or request or http_request
-                           if req and WEBHOOK_URL ~= "" then
-                              pcall(function()
-                                 req({
-                                    Url = WEBHOOK_URL,
-                                    Method = "POST",
-                                    Headers = { ["Content-Type"] = "application/json" },
-                                    Body = HttpService:JSONEncode(payload)
-                                 })
-                              end)
-                           end
-                        end
-                     end
-
-                     return caughtHookOld(self, ...)
-                  end)
-                  caughtHookEnabled = true
-               end
-            else
-               Rayfield:Notify({Title = "Info", Content = "Hookmetamethod tidak tersedia; tidak dapat monitor remote CaughtFishVisual.", Duration = 4})
-            end
-         -- Connect chat listener dengan error handling
-         local success, err = pcall(function()
-            local replicatedStorage = game:GetService("ReplicatedStorage")
-            local chatEvents = replicatedStorage:WaitForChild("DefaultChatSystemChatEvents", 3)
-            
-            if chatEvents then
-               local onMessageDoneFiltering = chatEvents:WaitForChild("OnMessageDoneFiltering", 3)
-               if onMessageDoneFiltering then
-                  connection = onMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
-                     if messageData and messageData.Message then
-                        local content = messageData.Message
-                        local author = messageData.FromSpeaker or "Server"
-                        local channel = messageData.ChannelName or "Unknown"
-
-                        -- Tangkap semua chat (player dan server)
-                        local request = syn and syn.request or request or http_request
-                        if request and WEBHOOK_URL ~= "" then
-                           local data = {
-                              content = "[**"..channel.."**] **"..author.."**: "..content
-                           }
-
-                           request({
-                              Url = WEBHOOK_URL,
-                              Method = "POST",
-                              Headers = {
-                                 ["Content-Type"] = "application/json"
-                              },
-                              Body = HttpService:JSONEncode(data)
-                           })
-                        end
-                     end
-                  end)
-               end
-            end
-         end)
-         
-         if not success then
-            -- Fallback: Coba gunakan TextChatService (chat system terbaru)
-            local success2, err2 = pcall(function()
-               local TextChatService = game:GetService("TextChatService")
-               local textChannels = TextChatService:WaitForChild("TextChannels", 3)
-               
-               if textChannels then
-                  for _, channel in ipairs(textChannels:GetChildren()) do
-                     local function onMessageReceived(message)
-                        if message and message.Text then
-                           local author = "Server"
-                           if message.TextSource and message.TextSource.Parent:IsA("Player") then
-                              author = message.TextSource.Parent.Name
-                           end
-                           
-                           local content = message.Text
-                           local channelName = channel.Name
-
-                           local request = syn and syn.request or request or http_request
-                           if request and WEBHOOK_URL ~= "" then
-                              local data = {
-                                 content = "[**"..channelName.."**] **"..author.."**: "..content
-                              }
-
-                              request({
-                                 Url = WEBHOOK_URL,
-                                 Method = "POST",
-                                 Headers = {
-                                    ["Content-Type"] = "application/json"
-                                 },
-                                 Body = HttpService:JSONEncode(data)
-                              })
-                           end
-                        end
-                     end
-                     
-                     if channel:IsA("TextChannel") then
-                        channel.MessageReceived:Connect(onMessageReceived)
-                     end
+         if hookmetamethod and getnamecallmethod and not caughtHookEnabled then
+            caughtHookOld = hookmetamethod(game, "__namecall", function(self, ...)
+               local method = getnamecallmethod()
+               local args = { ... }
+               if method == "FireServer" then
+                  local okName, instName = pcall(function() return self.Name end)
+                  local okFull, fullName = pcall(function() return self:GetFullName() end)
+                  local asString = tostring(self)
+                  if (okName and instName and tostring(instName):find("CaughtFishVisual")) or (okFull and fullName and tostring(fullName):find("CaughtFishVisual")) or (asString and asString:find("CaughtFishVisual")) then
+                     local playerArg = args[1]
+                     local playerName = tostring(playerArg)
+                     pcall(function()
+                        if typeof(playerArg) == "Instance" and playerArg:IsA("Player") then playerName = playerArg.Name end
+                     end)
+                     local fish = tostring(args[3] or "")
+                     local extra = tostring(args[4] or "")
+                     local content = "🎣 **CaughtFish**\nPlayer: "..playerName.."\nFish: "..fish.."\nExtra: "..extra
+                     send_webhook(content)
                   end
                end
+               return caughtHookOld(self, ...)
             end)
-            
-            if not success2 then
-               Rayfield:Notify({
-                  Title = "Error",
-                  Content = "Chat system tidak ditemukan!",
-                  Duration = 4,
-               })
-               webhookEnabled = false
-            end
+            caughtHookEnabled = true
+         else
+            Rayfield:Notify({ Title = "Info", Content = "Hookmetamethod tidak tersedia; tidak dapat monitor remote CaughtFishVisual.", Duration = 4 })
          end
-
       else
-         Rayfield:Notify({
-            Title = "Webhook Disabled",
-            Content = "Stopped monitoring chat.",
-            Duration = 4,
-         })
-
-         if connection then
-            connection:Disconnect()
-            connection = nil
-         end
-
-         -- Restore original namecall hook if we set it
+         Rayfield:Notify({ Title = "Webhook Disabled", Content = "Webhook Disabled.", Duration = 4 })
          if caughtHookEnabled and hookmetamethod and caughtHookOld then
-            pcall(function()
-               hookmetamethod(game, "__namecall", caughtHookOld)
-            end)
+            pcall(function() hookmetamethod(game, "__namecall", caughtHookOld) end)
             caughtHookOld = nil
             caughtHookEnabled = false
          end
