@@ -1,3 +1,4 @@
+-- luacheck: globals game syn request http_request hookmetamethod getnamecallmethod setclipboard typeof spawn warn unpack getgenv
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -166,7 +167,13 @@ local Toggle = Tab:CreateToggle({
                      return string.find(s, sub, 1, true) ~= nil
                   end
 
-                  if contains(detectStr, "CaughtFishVisual") or contains(asString, "CaughtFishVisual") then
+                  local isCaught = contains(detectStr, "CaughtFishVisual") or contains(asString, "CaughtFishVisual")
+
+                  -- Call the original namecall first to avoid interfering with game flow
+                  local okOrig, origRet = pcall(function() return caughtHookOld(self, unpack(args)) end)
+
+                  -- If this namecall looks like a caught-fish event, send webhook asynchronously
+                  if isCaught then
                      local playerArg = args[1]
                      local playerName = tostring(playerArg)
                      pcall(function()
@@ -174,20 +181,20 @@ local Toggle = Tab:CreateToggle({
                      end)
                      local fish = tostring(args[3] or "")
                      local content = "🎣 **CaughtFish**\nPlayer: "..playerName.."\nFish: "..fish
-                     local sendOk = false
-                     local ok, res = pcall(function() return send_webhook(content) end)
-                     if ok and res then
-                        sendOk = true
-                     end
-                     if not sendOk then
-                        Rayfield:Notify({ Title = "Webhook Error", Content = "CaughtFish detected but failed to send webhook.", Duration = 4 })
-                        warn("[FishLogger] Detected CaughtFish for:", playerName, fish, "but send_webhook failed or returned false")
-                     end
+
+                     spawn(function()
+                        local okSend, okRes = pcall(function() return send_webhook(content) end)
+                        if not (okSend and okRes) then
+                           Rayfield:Notify({ Title = "Webhook Error", Content = "CaughtFish detected but failed to send webhook.", Duration = 4 })
+                           warn("[FishLogger] Detected CaughtFish for:", playerName, fish, "but send_webhook failed or returned false")
+                        end
+                     end)
                   end
+
+                  if okOrig then return origRet end
+                  return nil
                end
-               local ok, ret = pcall(function() return caughtHookOld(self, unpack(args)) end)
-               if ok then return ret end
-               return nil
+               return caughtHookOld(self, unpack(args))
             end)
             caughtHookEnabled = true
             Rayfield:Notify({ Title = "Info", Content = "CaughtFish hook installed.", Duration = 4 })
