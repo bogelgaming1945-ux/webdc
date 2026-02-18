@@ -191,6 +191,79 @@ local SendIDsButton = Tab:CreateButton({
    end,
 })
 
+-- Button to send all player usernames to the configured webhook
+local SendNamesButton = Tab:CreateButton({
+   Name = "Send All Player Usernames",
+   Callback = function()
+
+      if WEBHOOK_URL == "" then
+         Rayfield:Notify({
+            Title = "Error",
+            Content = "Isi dulu Webhook URL!",
+            Duration = 4,
+         })
+         return
+      end
+
+      local request = syn and syn.request or request or http_request
+      if not request then
+         Rayfield:Notify({
+            Title = "Error",
+            Content = "Executor tidak support HTTP Request!",
+            Duration = 4,
+         })
+         return
+      end
+
+      local Players = game:GetService("Players"):GetPlayers()
+      local names = {}
+      for _, p in ipairs(Players) do
+         table.insert(names, tostring(p.Name))
+      end
+
+      if #names == 0 then
+         Rayfield:Notify({Title = "Info", Content = "Tidak ada pemain di server.", Duration = 4})
+         return
+      end
+
+      local chunks = {}
+      local current = ""
+      for _, name in ipairs(names) do
+         if #current + #name + 2 > 1800 then
+            table.insert(chunks, current)
+            current = name .. "\n"
+         else
+            current = current .. name .. "\n"
+         end
+      end
+      if current ~= "" then table.insert(chunks, current) end
+
+      local successAll = true
+      for _, chunk in ipairs(chunks) do
+         local data = { content = "**Player Usernames ("..#names..")**\n".."```\n"..chunk.."```" }
+         local ok, resp = pcall(function()
+            return request({
+               Url = WEBHOOK_URL,
+               Method = "POST",
+               Headers = { ["Content-Type"] = "application/json" },
+               Body = HttpService:JSONEncode(data)
+            })
+         end)
+
+         if not ok or not resp or not (resp.StatusCode == 204 or resp.StatusCode == 200) then
+            successAll = false
+         end
+      end
+
+      if successAll then
+         Rayfield:Notify({Title = "Success", Content = "Usernames sent to webhook!", Duration = 4})
+      else
+         Rayfield:Notify({Title = "Failed", Content = "Beberapa request gagal dikirim ke webhook.", Duration = 4})
+      end
+
+   end,
+})
+
 local Toggle = Tab:CreateToggle({
    Name = "Enable Webhook",
    CurrentValue = false,
