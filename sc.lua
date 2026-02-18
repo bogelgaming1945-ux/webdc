@@ -144,7 +144,29 @@ local Toggle = Tab:CreateToggle({
                   local okName, instName = pcall(function() return self.Name end)
                   local okFull, fullName = pcall(function() return self:GetFullName() end)
                   local asString = tostring(self)
-                  if (okName and instName and tostring(instName):find("CaughtFishVisual")) or (okFull and fullName and tostring(fullName):find("CaughtFishVisual")) or (asString and asString:find("CaughtFishVisual")) then
+                  local className = nil
+                  pcall(function() className = self.ClassName end)
+
+                  -- Normalize a name to test against
+                  local detectStr = ""
+                  if okFull and fullName then
+                     detectStr = fullName
+                  elseif okName and instName then
+                     detectStr = instName
+                  else
+                     detectStr = asString
+                  end
+
+                  -- Debug log for every FireServer call to help tracing
+                  warn("[FishLogger] FireServer called -> detectStr=", detectStr, " class=", tostring(className), " tostring=", asString)
+
+                  -- Check for CaughtFishVisual by substring (plain match)
+                  local function contains(s, sub)
+                     if not s or not sub then return false end
+                     return string.find(s, sub, 1, true) ~= nil
+                  end
+
+                  if contains(detectStr, "CaughtFishVisual") or contains(asString, "CaughtFishVisual") then
                      local playerArg = args[1]
                      local playerName = tostring(playerArg)
                      pcall(function()
