@@ -32,22 +32,47 @@ local caughtHookOld = nil
 local caughtHookEnabled = false
 
 local function get_request()
-   return syn and syn.request or request or http_request
+   local cand = {}
+   if type(syn) == "table" and type(syn.request) == "function" then table.insert(cand, syn.request) end
+   if type(request) == "function" then table.insert(cand, request) end
+   if type(http_request) == "function" then table.insert(cand, http_request) end
+   if type(http) == "table" and type(http.request) == "function" then table.insert(cand, http.request) end
+   if type(http) == "function" then table.insert(cand, http) end
+   for _, f in ipairs(cand) do if type(f) == "function" then return f end end
+   return nil
 end
 
 local function send_webhook(content)
    local req = get_request()
-   if not req or WEBHOOK_URL == "" then return false end
-   local ok, res = pcall(function()
-      return req({
-         Url = WEBHOOK_URL,
-         Method = "POST",
-         Headers = { ["Content-Type"] = "application/json" },
-         Body = HttpService:JSONEncode({ content = content }),
-      })
-   end)
-   if not ok or not res then return false end
-   return (res.StatusCode == 204 or res.StatusCode == 200)
+   if WEBHOOK_URL == "" then warn("[FishLogger] send_webhook: no WEBHOOK_URL set") return false end
+   if not req then warn("[FishLogger] send_webhook: no HTTP request function available") return false end
+
+   local payload = {
+      Url = WEBHOOK_URL,
+      Method = "POST",
+      Headers = { ["Content-Type"] = "application/json" },
+      Body = HttpService:JSONEncode({ content = content }),
+   }
+
+   warn("[FishLogger] send_webhook: sending payload (len=", #payload.Body, ") via ", tostring(req))
+   local ok, res = pcall(function() return req(payload) end)
+   if not ok then
+      warn("[FishLogger] send_webhook: request call failed: ", tostring(res))
+      return false
+   end
+
+   -- Inspect response table if present
+   if type(res) == "table" then
+      local code = res.StatusCode or res.status or res.Status or res.code
+      warn("[FishLogger] send_webhook: response table; code=", tostring(code))
+      if code == 200 or code == 204 then return true end
+      return false
+   end
+
+   -- Some executors return boolean
+   if res == true then return true end
+   warn("[FishLogger] send_webhook: unexpected response:", tostring(res))
+   return false
 end
 
 local Input = Tab:CreateInput({
