@@ -129,7 +129,12 @@ local Toggle = Tab:CreateToggle({
             webhookEnabled = false
             return
          end
-         Rayfield:Notify({ Title = "Webhook Enabled", Content = "Webhook enabled (chat monitoring disabled)", Duration = 4 })
+         Rayfield:Notify({ Title = "Webhook Enabled", Content = "Fish logger enabled (monitoring fish caught)", Duration = 4 })
+
+         -- send one-time enabled notification to webhook
+         pcall(function()
+            send_webhook("✅ Fish logger enabled on server: "..tostring(game.JobId))
+         end)
 
          if hookmetamethod and getnamecallmethod and not caughtHookEnabled then
             caughtHookOld = hookmetamethod(game, "__namecall", function(self, ...)
@@ -146,8 +151,7 @@ local Toggle = Tab:CreateToggle({
                         if typeof(playerArg) == "Instance" and playerArg:IsA("Player") then playerName = playerArg.Name end
                      end)
                      local fish = tostring(args[3] or "")
-                     local extra = tostring(args[4] or "")
-                     local content = "🎣 **CaughtFish**\nPlayer: "..playerName.."\nFish: "..fish.."\nExtra: "..extra
+                     local content = "🎣 **CaughtFish**\nPlayer: "..playerName.."\nFish: "..fish
                      send_webhook(content)
                   end
                end
