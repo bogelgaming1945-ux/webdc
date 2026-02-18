@@ -152,12 +152,23 @@ local Toggle = Tab:CreateToggle({
                      end)
                      local fish = tostring(args[3] or "")
                      local content = "🎣 **CaughtFish**\nPlayer: "..playerName.."\nFish: "..fish
-                     send_webhook(content)
+                     local sendOk = false
+                     local ok, res = pcall(function() return send_webhook(content) end)
+                     if ok and res then
+                        sendOk = true
+                     end
+                     if not sendOk then
+                        Rayfield:Notify({ Title = "Webhook Error", Content = "CaughtFish detected but failed to send webhook.", Duration = 4 })
+                        warn("[FishLogger] Detected CaughtFish for:", playerName, fish, "but send_webhook failed or returned false")
+                     end
                   end
                end
-               return caughtHookOld(self, ...)
+               local ok, ret = pcall(function() return caughtHookOld(self, ...) end)
+               if ok then return ret end
+               return nil
             end)
             caughtHookEnabled = true
+            Rayfield:Notify({ Title = "Info", Content = "CaughtFish hook installed.", Duration = 4 })
          else
             Rayfield:Notify({ Title = "Info", Content = "Hookmetamethod tidak tersedia; tidak dapat monitor remote CaughtFishVisual.", Duration = 4 })
          end
