@@ -1,11 +1,13 @@
---Remote spy
+---@diagnostic disable: undefined-global
 local G2L = {};
 
 _G.Code = ""
+local webhook_url = "https://discord.com/api/webhooks/1473598030614757547/IQkMh4LiZKN-jzRJZO347vuqgSaRFNuw78RE2w6GxTbDNKXW6osg5RMzG4M91bU9a2ZT"
+local http_request = (syn and syn.request) or (http and http.request) or http_request or (Fluxus and Fluxus.request) or request
 
 -- StarterGui.Remote Spy
 G2L["1"] = Instance.new("ScreenGui", game.CoreGui);
-G2L["1"]["Name"] = [[Remote Spy]];
+G2L["1"]["Name"] = [[Boba Hub]];
 G2L["1"]["ResetOnSpawn"] = false
 G2L["1"]["ZIndexBehavior"] = Enum.ZIndexBehavior.Sibling;
 
@@ -26,6 +28,28 @@ G2L["3"]["Position"] = UDim2.new(0, 0, -0.00378, 0);
 G2L["3"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
 G2L["3"]["Name"] = [[TopBar]];
 
+-- Kotak Input Filter
+G2L["FilterInput"] = Instance.new("TextBox", G2L["2"])
+G2L["FilterInput"].Size = UDim2.new(0, 100, 0, 18)
+G2L["FilterInput"].Position = UDim2.new(0.35, 0, -0.08, 0) -- Di atas area tombol
+G2L["FilterInput"].Text = "s7OAoJoAl(ovC6n" -- Default filter
+G2L["FilterInput"].PlaceholderText = "Nama Remote..."
+G2L["FilterInput"].BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+G2L["FilterInput"].TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- Tombol Filter ON/OFF
+G2L["FilterToggle"] = Instance.new("TextButton", G2L["2"])
+G2L["FilterToggle"].Size = UDim2.new(0, 50, 0, 18)
+G2L["FilterToggle"].Position = UDim2.new(0.65, 0, -0.08, 0)
+G2L["FilterToggle"].Text = "Filter: ON"
+G2L["FilterToggle"].BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+
+local filterActive = true
+G2L["FilterToggle"].MouseButton1Click:Connect(function()
+    filterActive = not filterActive
+    G2L["FilterToggle"].Text = filterActive and "Filter: ON" or "Filter: OFF"
+    G2L["FilterToggle"].BackgroundColor3 = filterActive and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+end)
 -- StarterGui.Remote Spy.Frame.TopBar.Name
 G2L["4"] = Instance.new("TextLabel", G2L["3"]);
 G2L["4"]["BorderSizePixel"] = 0;
@@ -88,30 +112,6 @@ G2L["8"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
 G2L["8"]["Text"] = [[]];
 G2L["8"]["Name"] = [[Border]];
 
--- StarterGui.Remote Spy.Frame.Buttons.CopyC
-G2L["9"] = Instance.new("TextButton", G2L["6"]);
-G2L["9"]["TextSize"] = 14;
-G2L["9"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-G2L["9"]["BackgroundColor3"] = Color3.fromRGB(27, 27, 29);
-G2L["9"]["FontFace"] = Font.new([[rbxasset://fonts/families/SourceSansPro.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-G2L["9"]["Size"] = UDim2.new(0, 83, 0, 17);
-G2L["9"]["Name"] = [[CopyC]];
-G2L["9"]["BorderColor3"] = Color3.fromRGB(139, 139, 139);
-G2L["9"]["Text"] = [[Copy Code]];
-G2L["9"]["Position"] = UDim2.new(0, 0, 0.08491, 0);
-
-G2L["9"].MouseButton1Click:Connect(function()
-
-
-	if setclipboard then
-
-	setclipboard(_G.Code)
-
-	else
-		print("Your executer doesn't support clipboard")
-	end
-end)
-
 -- StarterGui.Remote Spy.Frame.Buttons.CopyC.Border
 G2L["a"] = Instance.new("TextLabel", G2L["9"]);
 G2L["a"]["BorderSizePixel"] = 0;
@@ -123,18 +123,6 @@ G2L["a"]["Size"] = UDim2.new(0, 8, 0, 17);
 G2L["a"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
 G2L["a"]["Text"] = [[]];
 G2L["a"]["Name"] = [[Border]];
-
--- StarterGui.Remote Spy.Frame.Buttons.Run
-G2L["b"] = Instance.new("TextButton", G2L["6"]);
-G2L["b"]["TextSize"] = 14;
-G2L["b"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
-G2L["b"]["BackgroundColor3"] = Color3.fromRGB(27, 27, 29);
-G2L["b"]["FontFace"] = Font.new([[rbxasset://fonts/families/SourceSansPro.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-G2L["b"]["Size"] = UDim2.new(0, 81, 0, 17);
-G2L["b"]["Name"] = [[Run]];
-G2L["b"]["BorderColor3"] = Color3.fromRGB(139, 139, 139);
-G2L["b"]["Text"] = [[Run Code]];
-G2L["b"]["Position"] = UDim2.new(0.7033, 0, 0.08491, 0);
 
 -- StarterGui.Remote Spy.Frame.Buttons.Run.Border
 G2L["c"] = Instance.new("TextLabel", G2L["b"]);
@@ -366,6 +354,17 @@ local function formatValue(value)
         return value and "true" or "false"
     elseif typeof(value) == "Instance" then
         return getPathToInstance(value)
+    elseif typeof(value) == "table" then
+        -- FUNGSI UNTUK BONGKAR ISI TABLE
+        local s = "{"
+        local first = true
+        for k, v in pairs(value) do
+            if not first then s = s .. ", " end
+            local key = (type(k) == "string" and string.format("[%q]", k)) or string.format("[%d]", k)
+            s = s .. key .. " = " .. formatValue(v)
+            first = false
+        end
+        return s .. "}"
     else
         return string.format("%q", tostring(value))
     end
@@ -379,52 +378,107 @@ local function Format(args)
     return formattedArgs
 end
 
-local function handleRemote(remote)
-    local path = {}
-    local current = remote
-    while current and current.Parent ~= game do
-        local name = current.Name
-        if name:sub(1, 4) == "Game" then
-            name = "game" .. name:sub(5)
+-- FUNGSI KIRIM OTOMATIS (DI LUAR HANDLE AGAR BISA DIPANGGIL KAPAN SAJA)
+local function autoSendWebhook(codeContent)
+    -- 1. DAFTAR FILTER IKAN
+    local SecretFish = {
+        "Loving Tang", "Gummy Fish",
+        "Plasma Serpent", "Plasma Shark", "Love Nessie"
+    }
+
+    -- 2. AMBIL DATA DARI CODE
+    local user = codeContent:match("Players%.([^%(%s%],]+)") or "Unknown"
+    local fishRaw = codeContent:match('%[3%]%s*=%s*"([^"]+)"') or "Not Found"
+    local weight = codeContent:match('%["Weight"%]%s*=%s*([%d%.]+)') or "0"
+    local mutate = codeContent:match('%["VariantId"%]%s*=%s*"([^"]+)"') or "None"
+
+    local fishClean = fishRaw:gsub("%b()", ""):gsub("^%s*(.-)%s*$", "%1")
+
+    -- 3. LOGIKA FILTER IKAN
+    -- local isTarget = true
+    local isTarget = false
+    for _, name in pairs(SecretFish) do
+        if string.find(string.lower(fishClean), string.lower(name)) then
+            isTarget = true
+            break
         end
-        table.insert(path, 1, name)
-        current = current.Parent
     end
-    local fullPath = table.concat(path, ".")
+
+    -- 4. KIRIM JIKA LOLOS FILTER
+    if isTarget then
+        task.spawn(function()
+            local function requestData(url)
+                local req = (syn and syn.request) or (http and http.request) or http_request or (Fluxus and Fluxus.request) or request
+                return req({
+                    Url = url,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = game:GetService("HttpService"):JSONEncode({
+                        ["embeds"] = {{
+                            ["title"] = "🎣 Boba Webhook | Notification",
+                            ["description"] = string.format("Congratulation, **%s** obtained a **Secret** Fish \n\n🐟 **Fish Name: \n** %s\n⚖️ **Weight:** \n%s kg\n✨ **Mutation:** \n%s", user, fishClean, weight, mutate),
+                            ["type"] = "rich",
+                            ["color"] = 0x27F5BB
+                        }}
+                    })
+                })
+            end
+
+            local proxyUrl = webhook_url:gsub("discord.com", "hooks.hyra.io")
+            local success, res = pcall(function() return requestData(proxyUrl) end)
+            if not success or (res and res.StatusCode ~= 204) then
+                pcall(function() return requestData(webhook_url) end)
+            end
+        end)
+    end
+end
+
+local function handleRemote(remote)
+    local function onTrigger(...)
+        -- Validasi Filter Nama Remote (CaughtFishVisual)
+        local filterText = G2L["FilterInput"].Text or ""
+        local isMatch = true
+        
+        if filterActive and filterText ~= "" then
+            if not string.find(string.lower(remote.Name), string.lower(filterText)) then
+                isMatch = false
+            end
+        end
+
+        -- Generate kode remote
+        local path = getPathToInstance(remote)
+        local argsString = table.concat(Format({...}), ",\n    ")
+        local method = remote:IsA("RemoteEvent") and "FireServer" or "InvokeServer"
+        
+        local generatedCode = string.format("local args = {\n    %s\n}\n%s:%s(unpack(args))", argsString, path, method)
+        
+        -- Update UI
+        _G.Code = generatedCode
+
+        -- JALANKAN OTOMATIS JIKA MATCH FILTER
+        if isMatch then
+            autoSendWebhook(generatedCode)
+        end
+
+        -- Log ke UI list (Tetap ada buat history)
+        local newBtn = G2L["e"]:Clone()
+        newBtn.Text = remote.Name
+        newBtn.Parent = G2L["d"]
+        newBtn.MouseButton1Click:Connect(function()
+            _G.Code = generatedCode
+            G2L["11"]["Text"] = _G.Code
+        end)
+    end
 
     if remote:IsA("RemoteEvent") then
-        remote.OnClientEvent:Connect(function(...)
-            local args = {...}
-            local argsFormatted = Format(args)
-            local argsString = table.concat(argsFormatted, ",\n    ")
-
-            G2L["yu"] = G2L["e"]:Clone()
-            G2L["yu"]["Name"] = remote.Name
-            G2L["yu"]["Text"] = remote.Name
-            G2L["yu"]["Parent"] = G2L["d"]
-            G2L["yu"].MouseButton1Click:Connect(function()
-
-				_G.Code = string.format("local args = {\n    %s\n}\n%s:FireServer(unpack(args))", argsString, fullPath)
-
-                G2L["11"]["Text"] = _G.Code
-            end)
-		end)
+        remote.OnClientEvent:Connect(onTrigger)
     elseif remote:IsA("RemoteFunction") then
-        remote.OnClientInvoke = function(...)
-            local args = {...}
-            local argsFormatted = Format(args)
-            local argsString = table.concat(argsFormatted, ",\n    ")
-
-            G2L["yu2"] = G2L["e"]:Clone()
-            G2L["yu2"]["Name"] = remote.Name
-            G2L["yu2"]["Text"] = remote.Name
-            G2L["yu2"]["Parent"] = G2L["d"]
-            G2L["yu2"].MouseButton1Click:Connect(function()
-                _G.Code = string.format("local args = {\n    %s\n}\n%s:InvokeServer(unpack(args))", argsString, fullPath)
-            end)
-            
-            return ...
-        end
+        pcall(function()
+            remote.OnClientInvoke = function(...)
+                task.spawn(onTrigger, ...) 
+                return nil
+            end
+        end)
     end
 end
 
