@@ -13,7 +13,7 @@ local SecretFish = {
     "Giant Squid", "Dethseeker Ray", "Robot Kraken", "Mosasaur Shark",
     "King Jelly", "Bone Whale", "Elshark Gran Maja", "Ancient Whale",
     "Gladiator Shark", "Ancient Lochness Monster", "Pirate Megalodon",
-    "Leviathan", "Cursed Kraken", "Elirate Gran Maja", "Rainbow Comet Shark",
+    "Leviathan", "Cursed Kraken", "Blushwave", "Flying Hearts",
     "Strawberry Fish", "Love Nessie"
 }
 
