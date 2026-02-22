@@ -1,126 +1,98 @@
---[[
-    AdvancedSpy - Luraph Decryptor Edition
-    Versi utuh tanpa perlu module eksternal.
+--[[ 
+    AdvancedSpy - Single Script Edition
+    Modified to Decrypt Luraph/Encrypted Remotes
 ]]
 
-local G2L = {}
-_G.Code = ""
+local AdvancedSpy = {
+    Version = "1.0.0",
+    Enabled = true,
+    RemoteLog = {},
+}
 
--- =======================================================
--- 1. UI SETUP (Bagian ScreenGui kamu)
--- =======================================================
+-- 1. UI SIMPLE REPLACEMENT (Karena modul UIComponents kamu tidak ada)
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "RemoteSpy_Luraph"
-ScreenGui.ResetOnSpawn = false
+ScreenGui.Name = "AdvancedSpy_Luraph"
 
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 425, 0, 253)
-MainFrame.Position = UDim2.new(0.02, 0, 0.17, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 32)
-MainFrame.BorderSizePixel = 0
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 450, 0, 300)
+Main.Position = UDim2.new(0.5, -225, 0.5, -150)
+Main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Main.Active = true
+Main.Draggable = true -- Agar bisa digeser di mobile/PC
 
--- List Remote (ScrollingFrame)
-local LogList = Instance.new("ScrollingFrame", MainFrame)
-LogList.Size = UDim2.new(0, 152, 0, 220)
-LogList.Position = UDim2.new(0, 0, 0.1, 0)
-LogList.CanvasSize = UDim2.new(0, 0, 10, 0)
-LogList.BackgroundColor3 = Color3.fromRGB(40, 40, 42)
-LogList.ScrollBarThickness = 2
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = " ADVANCED SPY v1.0.0 - LURAPH DECRYPTOR"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 
-local Layout = Instance.new("UIListLayout", LogList)
-Layout.Padding = UDim.new(0, 2)
+local LogScroll = Instance.new("ScrollingFrame", Main)
+LogScroll.Size = UDim2.new(0, 160, 1, -40)
+LogScroll.Position = UDim2.new(0, 5, 0, 35)
+LogScroll.CanvasSize = UDim2.new(0, 0, 20, 0)
+LogScroll.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 
--- Preview Code (TextBox)
-local CodeDisplay = Instance.new("TextBox", MainFrame)
-CodeDisplay.Size = UDim2.new(0, 260, 0, 220)
-CodeDisplay.Position = UDim2.new(0.38, 0, 0.1, 0)
-CodeDisplay.MultiLine = true
-CodeDisplay.TextXAlignment = Enum.TextXAlignment.Left
-CodeDisplay.TextYAlignment = Enum.TextYAlignment.Top
-CodeDisplay.BackgroundColor3 = Color3.fromRGB(20, 20, 22)
-CodeDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
-CodeDisplay.Text = "-- Klik remote di kiri untuk melihat isi --"
-CodeDisplay.ClearTextOnFocus = false
-CodeDisplay.TextSize = 12
+local ListLayout = Instance.new("UIListLayout", LogScroll)
+ListLayout.Padding = UDim.new(0, 5)
 
--- Tombol Contoh (Template)
-local ButtonTemplate = Instance.new("TextButton")
-ButtonTemplate.Size = UDim2.new(1, 0, 0, 25)
-ButtonTemplate.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
-ButtonTemplate.TextColor3 = Color3.fromRGB(255, 255, 255)
-ButtonTemplate.TextSize = 10
+local CodeBox = Instance.new("TextBox", Main)
+CodeBox.Size = UDim2.new(1, -180, 1, -40)
+CodeBox.Position = UDim2.new(0, 170, 0, 35)
+CodeBox.MultiLine = true
+CodeBox.TextSize = 12
+CodeBox.TextXAlignment = Enum.TextXAlignment.Left
+CodeBox.TextYAlignment = Enum.TextYAlignment.Top
+CodeBox.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+CodeBox.TextColor3 = Color3.fromRGB(0, 255, 0)
+CodeBox.Text = "-- Klik remote di list untuk melihat code --"
+CodeBox.ClearTextOnFocus = false
 
--- =======================================================
--- 2. HELPER FUNCTIONS (Formatting & Path)
--- =======================================================
-local function getPath(obj)
-    local path = {}
-    local curr = obj
-    while curr and curr ~= game do
-        local name = curr.Name
-        if name:find("^%d") or name:find("[^%w]") then
-            name = '["' .. name .. '"]'
-        elseif curr ~= game then
-            name = (curr == game and "" or ".") .. name
-        end
-        table.insert(path, 1, name)
-        curr = curr.Parent
-    end
-    local res = table.concat(path):gsub("^%.", "game.")
-    return res
-end
-
+-- 2. HELPER: FORMAT DATA (Pengganti ScriptGenerator)
 local function formatTable(t, indent)
     indent = indent or 1
-    local s = "{\n"
+    local res = "{\n"
     for k, v in pairs(t) do
-        local formatting = string.rep("    ", indent) .. "[" .. (type(k) == "string" and '"' .. k .. '"' or tostring(k)) .. "] = "
-        if type(v) == "table" then
-            s = s .. formatting .. formatTable(v, indent + 1) .. ",\n"
-        elseif type(v) == "string" then
-            s = s .. formatting .. '"' .. v .. '"' .. ",\n"
-        else
-            s = s .. formatting .. tostring(v) .. ",\n"
-        end
+        local key = type(k) == "string" and '["'..k..'"]' or "["..tostring(k).."]"
+        local val = type(v) == "string" and '"'..v..'"' or tostring(v)
+        if type(v) == "table" then val = formatTable(v, indent + 1) end
+        res = res .. string.rep("  ", indent) .. key .. " = " .. val .. ",\n"
     end
-    return s .. string.rep("    ", indent - 1) .. "}"
+    return res .. string.rep("  ", indent-1) .. "}"
 end
 
--- =======================================================
--- 3. THE CORE: LURAPH DECRYPTOR (NAMECALL HOOK)
--- =======================================================
--- Bagian ini mencegat remote TEPAT saat game memanggilnya.
--- Ini bypass enkripsi nama karena kita mengambil 'self' (objek asli).
-
+-- 3. CORE: THE INTERCEPTOR (Nama remote aneh akan tetap tertangkap di sini)
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
 
-    if (method == "FireServer" or method == "InvokeServer") and self:IsA("Instance") then
+    if AdvancedSpy.Enabled and (method == "FireServer" or method == "InvokeServer") then
         task.spawn(function()
-            -- Buat Tombol Baru di List
-            local newBtn = ButtonTemplate:Clone()
-            newBtn.Text = "[" .. method:sub(1,1) .. "] " .. self.Name
-            newBtn.Parent = LogList
+            local remoteName = self.Name
+            local remotePath = self:GetFullName()
             
-            -- Jika nama remote aneh/encrypt, beri warna berbeda
-            if self.Name:find("[^%w%s]") then
-                newBtn.BackgroundColor3 = Color3.fromRGB(100, 80, 0)
+            -- Buat Tombol Log
+            local btn = Instance.new("TextButton", LogScroll)
+            btn.Size = UDim2.new(1, -10, 0, 25)
+            btn.Text = remoteName
+            btn.TextTruncate = Enum.TextTruncate.AtEnd
+            btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            btn.TextColor3 = Color3.new(1, 1, 1)
+
+            -- Warnai kuning jika nama terindikasi enkripsi (banyak simbol)
+            if string.find(remoteName, "[^%w%s]") then
+                btn.BackgroundColor3 = Color3.fromRGB(100, 80, 0)
             end
 
-            -- Logika saat tombol diklik
-            local formattedArgs = formatTable(args)
-            local path = getPath(self)
-            local finalCode = string.format("-- Remote Spy Decrypted\nlocal args = %s\n\n%s:%s(unpack(args))", formattedArgs, path, method)
-
-            newBtn.MouseButton1Click:Connect(function()
-                CodeDisplay.Text = finalCode
-                setclipboard(finalCode) -- Otomatis copy ke clipboard
+            btn.MouseButton1Click:Connect(function()
+                local code = string.format("-- Remote: %s\nlocal args = %s\ngame.%s:%s(unpack(args))", 
+                    remoteName, formatTable(args), remotePath, method)
+                CodeBox.Text = code
+                if setclipboard then setclipboard(code) end -- Auto copy
             end)
         end)
     end
     return oldNamecall(self, ...)
 end)
 
-print("AdvancedSpy Luraph Decryptor Loaded!")
+print("[AdvancedSpy] Loaded and Intercepting...")
