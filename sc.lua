@@ -380,62 +380,49 @@ local function Format(args)
 end
 
 local function handleRemote(remote)
-    -- Fungsi ini sekarang hanya bertugas mendaftarkan remote ke sistem list
-    -- Logika penangkapan datanya kita pindahkan ke Namecall Hook di bawah
-end
-
---- =======================================================
---- LURAPH DEOBFUSCATOR CORE (NAMECALL HOOK)
---- =======================================================
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local args = {...}
-    local method = getnamecallmethod()
-    
-    -- Kita hanya mencegat RemoteEvent (FireServer) dan RemoteFunction (InvokeServer)
-    if (method == "FireServer" or method == "InvokeServer") then
+    -- Fungsi pembantu untuk mencatat aktivitas
+    local function logActivity(method, args)
+        local argsFormatted = Format(args)
+        local argsString = table.concat(argsFormatted, ",\n    ")
+        local fullPath = getPathToInstance(remote)
         
-        -- Jalankan di thread terpisah agar tidak menyebabkan lag/crash
-        task.spawn(function()
-            -- 1. Ambil Path dan Nama
-            local fullPath = getPathToInstance(self)
-            local remoteName = self.Name
-            
-            -- 2. Format Argumen (Ini adalah data ASLI sebelum di-obfuscate lebih jauh)
-            local argsFormatted = Format(args)
-            local argsString = table.concat(argsFormatted, ",\n    ")
-            
-            -- 3. Generate Kode untuk Clipboard/Preview
-            local generatedCode = string.format("local args = {\n    %s\n}\n%s:%s(unpack(args))", argsString, fullPath, method)
-            
-            -- 4. Update UI Preview Secara Real-time
+        -- Generate Kode
+        local generatedCode = string.format("local args = {\n    %s\n}\n%s:%s(unpack(args))", argsString, fullPath, method)
+        
+        -- Update UI Global Preview
+        _G.Code = generatedCode
+        G2L["11"]["Text"] = generatedCode
+
+        -- Tambahkan ke Daftar List (Scroll)
+        local newBtn = G2L["e"]:Clone()
+        newBtn.Text = remote.Name
+        newBtn.Parent = G2L["d"]
+        
+        -- Klik tombol di list untuk melihat kode
+        newBtn.MouseButton1Click:Connect(function()
             _G.Code = generatedCode
             G2L["11"]["Text"] = generatedCode
-
-            -- 5. Tambahkan ke List UI (Hanya jika belum ada di list untuk menghindari spam)
-            -- Tapi untuk Remote Spy, biasanya kita biarkan saja menumpuk agar terlihat history-nya
-            local newBtn = G2L["e"]:Clone()
-            newBtn.Text = remoteName
-            newBtn.Parent = G2L["d"]
-            
-            if newBtn:FindFirstChild("border") then
-                newBtn.border.BackgroundColor3 = Color3.fromRGB(255, 242, 81)
-            end
-
-            newBtn.MouseButton1Click:Connect(function()
-                _G.Code = generatedCode
-                G2L["11"]["Text"] = generatedCode
-            end)
-            
-            -- 6. Kirim ke Webhook (Jika kamu menggunakan fitur auto-fish/webhook)
-            if typeof(autoSendWebhook) == "function" then
-                autoSendWebhook(generatedCode)
-            end
         end)
     end
-    
-    return oldNamecall(self, ...)
-end)
+
+    -- [ AGGRESSIVE DEOBFUSCATOR HOOK ]
+    -- Kita membajak (overwrite) fungsi asli agar kita dapat datanya
+    if remote:IsA("RemoteEvent") then
+        local oldFire = remote.FireServer
+        remote.FireServer = function(self, ...)
+            local args = {...}
+            task.spawn(logActivity, "FireServer", args)
+            return oldFire(self, unpack(args))
+        end
+    elseif remote:IsA("RemoteFunction") then
+        local oldInvoke = remote.InvokeServer
+        remote.InvokeServer = function(self, ...)
+            local args = {...}
+            task.spawn(logActivity, "InvokeServer", args)
+            return oldInvoke(self, unpack(args))
+        end
+    end
+end
 
 local function wrapRemotes(folder)
     for _, obj in ipairs(folder:GetDescendants()) do
