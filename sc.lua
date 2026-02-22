@@ -14,7 +14,7 @@ local SecretFish = {
     "King Jelly", "Bone Whale", "Elshark Gran Maja", "Ancient Whale",
     "Gladiator Shark", "Ancient Lochness Monster", "Pirate Megalodon",
     "Leviathan", "Cursed Kraken", "Elirate Gran Maja", "Rainbow Comet Shark",
-    "Gummy Fish", "Love Nessie"
+    "Strawberry Fish", "Love Nessie"
 }
 
 local MissionItems1 = {"Ruby"}
