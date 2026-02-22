@@ -1,221 +1,126 @@
 --[[
-    AdvancedSpy
-    A mobile-friendly enhanced remote spy for Roblox games.
-    Author: Assistant
-    Version: 1.0.0
+    AdvancedSpy - Luraph Decryptor Edition
+    Versi utuh tanpa perlu module eksternal.
 ]]
-local AdvancedSpy = {
-    Version = "1.0.0",
-    Enabled = false,
-    Connections = {},
-    RemoteLog = {},
-    BlockedRemotes = {},
-    ExcludedRemotes = {},
-    Settings = {
-        Theme = "dark",
-        MaxLogs = 1000,
-        AutoBlock = false,
-        LogReturnValues = true,
-        Debug = true
-    }
-}
 
--- Debug logging function
-local function debugLog(module, message)
-    if AdvancedSpy.Settings.Debug then
-        print(string.format("[AdvancedSpy Debug] [%s] %s", module, message))
+local G2L = {}
+_G.Code = ""
+
+-- =======================================================
+-- 1. UI SETUP (Bagian ScreenGui kamu)
+-- =======================================================
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "RemoteSpy_Luraph"
+ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 425, 0, 253)
+MainFrame.Position = UDim2.new(0.02, 0, 0.17, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 32)
+MainFrame.BorderSizePixel = 0
+
+-- List Remote (ScrollingFrame)
+local LogList = Instance.new("ScrollingFrame", MainFrame)
+LogList.Size = UDim2.new(0, 152, 0, 220)
+LogList.Position = UDim2.new(0, 0, 0.1, 0)
+LogList.CanvasSize = UDim2.new(0, 0, 10, 0)
+LogList.BackgroundColor3 = Color3.fromRGB(40, 40, 42)
+LogList.ScrollBarThickness = 2
+
+local Layout = Instance.new("UIListLayout", LogList)
+Layout.Padding = UDim.new(0, 2)
+
+-- Preview Code (TextBox)
+local CodeDisplay = Instance.new("TextBox", MainFrame)
+CodeDisplay.Size = UDim2.new(0, 260, 0, 220)
+CodeDisplay.Position = UDim2.new(0.38, 0, 0.1, 0)
+CodeDisplay.MultiLine = true
+CodeDisplay.TextXAlignment = Enum.TextXAlignment.Left
+CodeDisplay.TextYAlignment = Enum.TextYAlignment.Top
+CodeDisplay.BackgroundColor3 = Color3.fromRGB(20, 20, 22)
+CodeDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+CodeDisplay.Text = "-- Klik remote di kiri untuk melihat isi --"
+CodeDisplay.ClearTextOnFocus = false
+CodeDisplay.TextSize = 12
+
+-- Tombol Contoh (Template)
+local ButtonTemplate = Instance.new("TextButton")
+ButtonTemplate.Size = UDim2.new(1, 0, 0, 25)
+ButtonTemplate.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+ButtonTemplate.TextColor3 = Color3.fromRGB(255, 255, 255)
+ButtonTemplate.TextSize = 10
+
+-- =======================================================
+-- 2. HELPER FUNCTIONS (Formatting & Path)
+-- =======================================================
+local function getPath(obj)
+    local path = {}
+    local curr = obj
+    while curr and curr ~= game do
+        local name = curr.Name
+        if name:find("^%d") or name:find("[^%w]") then
+            name = '["' .. name .. '"]'
+        elseif curr ~= game then
+            name = (curr == game and "" or ".") .. name
+        end
+        table.insert(path, 1, name)
+        curr = curr.Parent
     end
+    local res = table.concat(path):gsub("^%.", "game.")
+    return res
 end
 
--- Load modules
-local UIComponents = require("modules.UIComponents")
-local RemoteInterceptor = require("modules.RemoteInterceptor")
-local ScriptGenerator = require("modules.ScriptGenerator")
-local Theme = require("modules.Theme")
-local TouchControls = require("modules.TouchControls")
-local NetworkVisualizer = require("modules.NetworkVisualizer")
-
--- Core UI Elements
-local GUI = {
-    Main = nil,
-    LogList = nil,
-    SearchBar = nil,
-    SettingsPanel = nil,
-    RemotePanel = nil  -- Remote management panel
-}
-
-function AdvancedSpy:Init()
-    if not game then
-        warn("AdvancedSpy must be run within Roblox!")
-        return
+local function formatTable(t, indent)
+    indent = indent or 1
+    local s = "{\n"
+    for k, v in pairs(t) do
+        local formatting = string.rep("    ", indent) .. "[" .. (type(k) == "string" and '"' .. k .. '"' or tostring(k)) .. "] = "
+        if type(v) == "table" then
+            s = s .. formatting .. formatTable(v, indent + 1) .. ",\n"
+        elseif type(v) == "string" then
+            s = s .. formatting .. '"' .. v .. '"' .. ",\n"
+        else
+            s = s .. formatting .. tostring(v) .. ",\n"
+        end
     end
+    return s .. string.rep("    ", indent - 1) .. "}"
+end
 
-    debugLog("Init", "Initializing AdvancedSpy v" .. self.Version)
+-- =======================================================
+-- 3. THE CORE: LURAPH DECRYPTOR (NAMECALL HOOK)
+-- =======================================================
+-- Bagian ini mencegat remote TEPAT saat game memanggilnya.
+-- Ini bypass enkripsi nama karena kita mengambil 'self' (objek asli).
 
-    -- Create main UI components
-    GUI.Main = UIComponents.CreateMainWindow()
-    GUI.LogList = UIComponents.CreateLogList()
-    GUI.SearchBar = UIComponents.CreateSearchBar()
-    GUI.SettingsPanel = UIComponents.CreateSettingsPanel()
-    GUI.RemotePanel = UIComponents.CreateRemoteManagementPanel()
-    GUI.RemotePanel.Parent = GUI.Main.MainFrame.ContentFrame
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
 
-    -- Initialize touch controls for mobile
-    debugLog("TouchControls", "Initializing touch controls...")
-    TouchControls:Init(GUI.Main)
-
-    -- Setup remote interceptors
-    debugLog("RemoteInterceptor", "Setting up remote interceptors...")
-    RemoteInterceptor:Init(function(remote, args, returnValue, stats)
-        self:HandleRemoteCall(remote, args, returnValue, stats)
-    end)
-
-    -- Apply initial theme
-    debugLog("Theme", "Applying initial theme: " .. self.Settings.Theme)
-    Theme:Apply(self.Settings.Theme)
-
-    -- Setup search functionality
-    GUI.SearchBar.Changed:Connect(function(text)
-        self:FilterLogs(text)
-    end)
-
-    -- Setup periodic remote list updates
-    self:UpdateRemoteList()
-    task.spawn(function()
-        while self.Enabled do
-            task.wait(5)  -- Update every 5 seconds
-            if self.Enabled then  -- Check again to prevent update after destruction
-                self:UpdateRemoteList()
+    if (method == "FireServer" or method == "InvokeServer") and self:IsA("Instance") then
+        task.spawn(function()
+            -- Buat Tombol Baru di List
+            local newBtn = ButtonTemplate:Clone()
+            newBtn.Text = "[" .. method:sub(1,1) .. "] " .. self.Name
+            newBtn.Parent = LogList
+            
+            -- Jika nama remote aneh/encrypt, beri warna berbeda
+            if self.Name:find("[^%w%s]") then
+                newBtn.BackgroundColor3 = Color3.fromRGB(100, 80, 0)
             end
-        end
-    end)
 
-    self.Enabled = true
-    debugLog("Init", "AdvancedSpy initialized successfully")
-end
+            -- Logika saat tombol diklik
+            local formattedArgs = formatTable(args)
+            local path = getPath(self)
+            local finalCode = string.format("-- Remote Spy Decrypted\nlocal args = %s\n\n%s:%s(unpack(args))", formattedArgs, path, method)
 
-function AdvancedSpy:HandleRemoteCall(remote, args, returnValue, stats)
-    if not self.Enabled then return end
-    debugLog("RemoteCall", string.format("Handling remote call: %s", remote.Name))
-
-    if self:IsExcluded(remote) then 
-        debugLog("RemoteCall", "Remote is excluded, ignoring...")
-        return 
+            newBtn.MouseButton1Click:Connect(function()
+                CodeDisplay.Text = finalCode
+                setclipboard(finalCode) -- Otomatis copy ke clipboard
+            end)
+        end)
     end
+    return oldNamecall(self, ...)
+end)
 
-    if self:IsBlocked(remote) then 
-        debugLog("RemoteCall", "Remote is blocked, ignoring...")
-        return 
-    end
-
-    local logEntry = {
-        Remote = remote,
-        Args = args,
-        ReturnValue = returnValue,
-        Timestamp = os.time(),
-        Stack = debug.traceback(),
-        Id = #self.RemoteLog + 1,
-        NetworkStats = stats  -- Detailed network statistics from interception
-    }
-
-    table.insert(self.RemoteLog, 1, logEntry)
-    debugLog("RemoteCall", string.format("Added log entry #%d", logEntry.Id))
-    self:TrimLogs()
-    self:UpdateLogDisplay(logEntry)
-end
-
-function AdvancedSpy:FilterLogs(searchText)
-    if not searchText then return end
-    searchText = searchText:lower()
-    for _, entry in ipairs(self.RemoteLog) do
-        local visible = entry.Remote.Name:lower():find(searchText) ~= nil
-        local logElement = GUI.LogList:FindFirstChild("Log_" .. entry.Id)
-        if logElement then
-            logElement.Visible = visible
-        end
-    end
-end
-
-function AdvancedSpy:UpdateLogDisplay(logEntry)
-    if not self.Enabled or not logEntry then return end
-    debugLog("UI", string.format("Updating display for log entry #%d", logEntry.Id))
-    UIComponents.AddLogEntry(GUI.LogList, logEntry)
-end
-
-function AdvancedSpy:TrimLogs()
-    while #self.RemoteLog > self.Settings.MaxLogs do
-        table.remove(self.RemoteLog)
-    end
-    debugLog("Logs", string.format("Trimmed logs to %d entries", #self.RemoteLog))
-end
-
--- API Functions
-function AdvancedSpy:BlockRemote(remote)
-    if not remote then return end
-    debugLog("API", string.format("Blocking remote: %s", remote.Name))
-    self.BlockedRemotes[remote] = true
-    RemoteInterceptor:BlockRemote(remote)
-end
-
-function AdvancedSpy:UnblockRemote(remote)
-    if not remote then return end
-    debugLog("API", string.format("Unblocking remote: %s", remote.Name))
-    self.BlockedRemotes[remote] = nil
-    RemoteInterceptor:UnblockRemote(remote)
-end
-
-function AdvancedSpy:ExcludeRemote(remote)
-    if not remote then return end
-    debugLog("API", string.format("Excluding remote: %s", remote.Name))
-    self.ExcludedRemotes[remote] = true
-end
-
-function AdvancedSpy:IncludeRemote(remote)
-    if not remote then return end
-    debugLog("API", string.format("Including remote: %s", remote.Name))
-    self.ExcludedRemotes[remote] = nil
-end
-
-function AdvancedSpy:GetRemoteFiredSignal(remote)
-    if not remote then return end
-    debugLog("API", string.format("Creating signal for remote: %s", remote.Name))
-    return RemoteInterceptor:CreateSignal(remote)
-end
-
-function AdvancedSpy:UpdateRemoteList()
-    if not self.Enabled then return end
-    local remotes = RemoteInterceptor:GetAllRemotes()
-    GUI.RemotePanel:UpdateRemotes(remotes)
-    debugLog("RemoteList", string.format("Updated remote list (%d remotes)", #remotes))
-end
-
-function AdvancedSpy:IsBlocked(remote)
-    return remote and self.BlockedRemotes[remote] ~= nil
-end
-
-function AdvancedSpy:IsExcluded(remote)
-    return remote and self.ExcludedRemotes[remote] ~= nil
-end
-
-function AdvancedSpy:Destroy()
-    debugLog("Cleanup", "Destroying AdvancedSpy...")
-    self.Enabled = false
-    for _, connection in pairs(self.Connections) do
-        if typeof(connection) == "RBXScriptConnection" and connection.Connected then
-            connection:Disconnect()
-        end
-    end
-    if GUI.Main and typeof(GUI.Main) == "Instance" then
-        GUI.Main:Destroy()
-    end
-    table.clear(self.RemoteLog)
-    table.clear(self.BlockedRemotes)
-    table.clear(self.ExcludedRemotes)
-    debugLog("Cleanup", "AdvancedSpy destroyed successfully")
-end
-
--- Return the module initialization function
-return function()
-    AdvancedSpy:Init()
-    return AdvancedSpy
-end
+print("AdvancedSpy Luraph Decryptor Loaded!")
